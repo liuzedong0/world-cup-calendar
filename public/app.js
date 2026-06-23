@@ -134,6 +134,10 @@ function dataSignature(data) {
   });
 }
 
+function sameList(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function groupedByDate(matches) {
   return matches.reduce((days, match) => {
     if (!days[match.dateKey]) days[match.dateKey] = [];
@@ -279,13 +283,13 @@ function renderStandingRow(entry) {
 function renderMatch(match) {
   const venueBits = [match.venue.name, match.venue.city, match.venue.country].filter(Boolean).join(" · ");
   return `
-    <article class="match-card ${match.status.state === "in" ? "live-match" : ""}">
+    <article class="match-card ${match.status.state === "in" ? "live-match" : ""}" data-match-id="${match.id}">
       <div class="match-main">
         <div class="time">${match.time}</div>
         ${teamMarkup(match.homeTeam, "home")}
-        <div class="score">${scoreLabel(match)}</div>
+        <div class="score" data-role="score">${scoreLabel(match)}</div>
         ${teamMarkup(match.awayTeam, "away")}
-        <div class="status ${match.status.state}">${statusMarkup(match.status)}</div>
+        <div class="status ${match.status.state}" data-role="status">${statusMarkup(match.status)}</div>
       </div>
       <div class="meta">
         <span>${venueBits}</span>
@@ -301,10 +305,32 @@ function renderMatch(match) {
   `;
 }
 
+function patchVisibleMatches(matches) {
+  const cards = [...document.querySelectorAll("[data-match-id]")];
+  matches.forEach((match) => {
+    const card = cards.find((node) => node.dataset.matchId === String(match.id));
+    if (!card) return;
+
+    card.classList.toggle("live-match", match.status.state === "in");
+
+    const score = card.querySelector('[data-role="score"]');
+    if (score) score.textContent = scoreLabel(match);
+
+    const status = card.querySelector('[data-role="status"]');
+    if (status) {
+      status.className = `status ${match.status.state}`;
+      status.dataset.role = "status";
+      status.innerHTML = statusMarkup(match.status);
+    }
+  });
+}
+
 async function loadMatches({ silent = false } = {}) {
   if (!silent && !state.data) {
     calendar.innerHTML = `<div class="empty">正在加载赛程... / Loading matches...</div>`;
   }
+  const previousVisibleIds = visibleMatches().map((match) => String(match.id));
+  const previousStandingsSignature = JSON.stringify(state.data?.standings || []);
   const response = await fetch("/api/matches", { cache: "no-store" });
   if (!response.ok) throw new Error("赛程加载失败 / Failed to load matches");
   const nextData = await response.json();
@@ -312,9 +338,20 @@ async function loadMatches({ silent = false } = {}) {
   const unchanged = state.lastSignature === nextSignature;
   state.data = nextData;
   state.lastSignature = nextSignature;
+  const matches = visibleMatches();
+  const currentVisibleIds = matches.map((match) => String(match.id));
 
   if (silent && unchanged) {
-    renderSummary(visibleMatches());
+    renderSummary(matches);
+    return;
+  }
+
+  if (silent && sameList(previousVisibleIds, currentVisibleIds)) {
+    renderSummary(matches);
+    patchVisibleMatches(matches);
+    if (previousStandingsSignature !== JSON.stringify(state.data?.standings || [])) {
+      renderStandings();
+    }
     return;
   }
 

@@ -1,5 +1,6 @@
 const state = {
   data: null,
+  lastSignature: "",
   query: "",
   status: "all",
   didAutoScroll: false,
@@ -116,6 +117,20 @@ function visibleMatches() {
   return state.data.matches.filter((match) => {
     const statusOk = state.status === "all" || match.status.state === state.status;
     return statusOk && matchSearches(match, query);
+  });
+}
+
+function dataSignature(data) {
+  return JSON.stringify({
+    matches: data.matches.map((match) => [
+      match.id,
+      match.homeTeam.score,
+      match.awayTeam.score,
+      match.status.state,
+      match.status.detail,
+      match.status.displayClock
+    ]),
+    standings: data.standings
   });
 }
 
@@ -286,11 +301,23 @@ function renderMatch(match) {
   `;
 }
 
-async function loadMatches() {
-  calendar.innerHTML = `<div class="empty">正在加载赛程... / Loading matches...</div>`;
+async function loadMatches({ silent = false } = {}) {
+  if (!silent && !state.data) {
+    calendar.innerHTML = `<div class="empty">正在加载赛程... / Loading matches...</div>`;
+  }
   const response = await fetch("/api/matches", { cache: "no-store" });
   if (!response.ok) throw new Error("赛程加载失败 / Failed to load matches");
-  state.data = await response.json();
+  const nextData = await response.json();
+  const nextSignature = dataSignature(nextData);
+  const unchanged = state.lastSignature === nextSignature;
+  state.data = nextData;
+  state.lastSignature = nextSignature;
+
+  if (silent && unchanged) {
+    renderSummary(visibleMatches());
+    return;
+  }
+
   render();
 
   if (!state.didAutoScroll) {
@@ -312,7 +339,7 @@ async function refreshMatches() {
   refreshButton.textContent = "更新中 / Updating";
   try {
     await refreshServerCache();
-    await loadMatches();
+    await loadMatches({ silent: true });
   } finally {
     refreshButton.disabled = false;
     refreshButton.textContent = "更新 / Refresh";
@@ -343,7 +370,7 @@ async function boot() {
 
 setInterval(() => {
   refreshServerCache()
-    .then(loadMatches)
+    .then(() => loadMatches({ silent: true }))
     .catch((error) => console.warn(error));
 }, 30 * 1000);
 
@@ -351,7 +378,7 @@ document.addEventListener("visibilitychange", () => {
   const stale = Date.now() - state.lastServerRefreshAt > 60 * 1000;
   if (document.visibilityState === "visible" && stale) {
     refreshServerCache()
-      .then(loadMatches)
+      .then(() => loadMatches({ silent: true }))
       .catch((error) => console.warn(error));
   }
 });

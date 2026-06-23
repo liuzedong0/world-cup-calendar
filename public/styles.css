@@ -260,24 +260,9 @@ select:focus {
   border: 2px solid #1f6fff;
   background: rgba(120, 190, 255, 0.2);
   padding: 12px 14px;
-  animation: liveBorderPulse 1.15s ease-in-out infinite alternate;
-}
-
-@keyframes liveBorderPulse {
-  from {
-    border-color: #1f6fff;
-    box-shadow:
-      0 0 0 1px rgba(31, 111, 255, 0.22),
-      0 10px 24px rgba(31, 111, 255, 0.12);
-  }
-
-  to {
-    border-color: #ffd23c;
-    box-shadow:
-      0 0 0 2px rgba(255, 210, 60, 0.34),
-      0 0 18px rgba(255, 210, 60, 0.32),
-      0 16px 34px rgba(255, 210, 60, 0.16);
-  }
+  box-shadow:
+    0 0 0 1px rgba(31, 111, 255, 0.18),
+    0 12px 26px rgba(31, 111, 255, 0.12);
 }
 
 .today .match-card {
@@ -285,7 +270,7 @@ select:focus {
 }
 
 .today .live-match {
-  border-color: #f28c18;
+  border-color: #1f6fff;
 }
 
 .match-main {
